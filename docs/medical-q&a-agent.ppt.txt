@@ -1,0 +1,77 @@
+Medical Visual Q&A Agent – Project Outline 
+
+Goal: Build a multi-agent system that can understand medical images and give accurate, explainable reasoning and answers.
+Overview:
+Vision – Medical Image Analysis
+LLM – Reasoning + Fine Tuning
+Agent – Multi-Agent Orchestration
+Data – Big Data Analysis
+Dataset: PathVQA [1]
+High Volume
+High Variety
+1
+
+Vision Module
+🧩 Backbone Options: DINO / DINOv2 (ViT-L/14 or ViT-B/16)
+Self-supervised transformer trained on large-scale image data
+Produces patch-level tokens with strong semantic consistency
+⚙️ Feature Processing
+Input: pathology image → DINO encoder → [CLS] + patch tokens
+Feature selection: Attention pooling / Top-K tokens → region-like features， Optional multi-scale cropping for tissue-level context
+🔄 Fusion with Language Module
+Project visual tokens → same dimension as question embeddings
+Use Cross-Attention or Bilinear Attention (BAN style). Enables question-guided focus on relevant pathology regions
+🧬 Training & Adaptation
+Unsupervised training for medical specification! 
+
+2
+
+LLM Reasoning
+
+Medical understanding, reasoning, and answering.
+
+Overview:
+Language reasoning engine using LLaMa 3 /Qwen…
+Combines visual embeddings from vision module
+Lightweight fine-tuning on medical VQA datasets
+Integrated into LanGraph multi-agent flow
+Alignment Layer:
+Alignment agent that validates 
+each answer [2]
+3
+
+
+
+Deep agent Orchestration
+Task Decomposition: breaks complex request into independent tasks
+Parallel Fan-out: concurrently delegates subtasks to subagents
+Subagents:
+Vision Agent: analyzes provided medical images.
+Literature Agent: retrieves and summarizes medical literatures.
+Agentic Context Engineering (ACE) as Langchain Middlewares [3]
+Generator = Agent: Executes tasks using current context
+Reflector (@after_agent)
+Evaluates trace: tool calls, task delegations, reasoning, etc.
+Proposes strategy bullets
+Curator (@after_agent): Deduplicates and integrates bullets into context (used in next runs)
+System: Multi-Agent System with ACE Middlewares
+
+Schedule
+
+Week 1: Dataset Processing
+Week 2-3: Finish the core modules:
+	Vision (by Yufeng)
+	LLM (by Chengbo)
+	Agent (by Yigang)
+Week 4: System + Evaluation
+Week 5: UI + Demo + Report
+
+References:
+[1] He X., Zhang Y., Mou L., Xing E., Xie P. (2020). PathVQA: 30000+ Questions for Medical Visual Question Answering. arXiv:2003.10286.
+[2] Zeng W., Zhu H., Qin C., Wu H., Cheng Y., Zhang S., Jin X., Shen Y., Wang Z., Zhong F., Xiong H. (2025). Multi-level Value Alignment in Agentic AI Systems: Survey and Perspectives. arXiv:2506.09656.
+[3] Zhang Q., Hu C., Upasani S., Ma B., Hong F., Kamanuru V., Rainton J., Wu C., Ji M., Li H., Thakker U., Zou J., Olukotun K. (2025). Agentic Context Engineering: Evolving Contexts for Self-Improving Language Models. arXiv:2510.04618.
+
+
+
+
+5

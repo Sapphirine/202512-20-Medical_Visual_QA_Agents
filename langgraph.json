@@ -1,0 +1,8 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "medical_assistant": "./src/agents/medical_assistant_agent.py:agent"
+  },
+  "env": ".env"
+}
+
