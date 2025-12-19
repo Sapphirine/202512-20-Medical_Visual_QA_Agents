@@ -65,7 +65,8 @@ data/ace_memory/*.md
 *.tiff
 *.ico
 
-
-
-
-
+# User requested ignores
+QUICKSTART.md
+START_STUDIO.md
+inference.ipynb
+inference (1).ipynb

@@ -1,145 +1,129 @@
-# Medical-ACE: Medical Visual Question Answering System
+# Medical-ACE: Self-Improving Medical VQA System
 
-🏥 AI-powered medical image analysis system combining vision and language models.
+**EECS6893 Big Data Analytics Final Project (Fall 2025)**  
+*A Multi-Agent System that Reads, Understands, and Learns from Medical Images at Scale*
 
-*EECS6893 Big Data Analytics Final Project: A Multi-Agent System that Reads and Understands Medical Images at Scale*
+Medical-ACE is a next-generation medical visual question answering agent that uses **Agentic Context Engineering (ACE)** to continuously improve its performance. Unlike static models, ACE learns from every interaction, evolving a shared "Strategy Playbook" to handle complex diagnostic queries with increasing precision.
 
-## 🚀 Quick Start
+---
+
+## Key Features
+
+### Self-Improving ACE Framework
+Implements the **Reflect-Curate-Execute** loop (arXiv:2510.04618):
+- **Generator**: GPT-5.1 powered agent with dynamic prompt injection.
+- **Reflector**: Background agent that analyzes execution traces for success/failure signals.
+- **Curator**: Updates a persistent `playbook.md` with "delta updates" (merge, refine, prune).
+- **Playbook**: Evolving memory of medical VQA strategies (e.g., "Use 5-fold fan-out for ambiguous slides").
+
+### Specialized Medical VQA
+- **Vision Backbone**: CLIP (ViT-Base) + Custom Multi-Token Projector.
+- **Reasoning**: TinyLlama-1.1B aligned with Direct Preference Optimization (DPO) on UltraMedical data.
+- **Deployment**: Hosted on **HuggingFace Spaces** for scalable, GPU-backed inference.
+
+### Agentic Orchestration
+- **LangGraph**: Stateful multi-agent orchestration with persistent threading.
+- **Async Learning**: Reflection runs in "fire-and-forget" background threads to maintain low user latency.
+
+---
+
+## System Architecture
+
+```mermaid
+graph TD
+    User[User] -->|Image + Query| Generator["Medical Assistant Agent"]
+    Generator <-->|API Call| RemoteVQA["Remote VQA Tool (HF Spaces)"]
+    
+    subgraph ACE_Loop ["ACE Self-Improvement Loop"]
+        Generator -->|Execution Trace| Reflector["Reflection Agent"]
+        Reflector -->|Insights| Curator["Curator Logic"]
+        Curator -->|Delta Updates| Playbook[("Strategy Playbook.md")]
+        Playbook -->|Dynamic Context| Generator
+    end
+```
+
+---
+
+## Quick Start
 
 ### 1. Setup Environment
-
 ```bash
-# Activate conda environment
+# Clone the repository
+git clone https://github.com/Sapphirine/202512-20-Medical_Visual_QA_Agents.git
+cd Medical-ACE
+
+# Create conda environment
+conda create -n ACE python=3.10
 conda activate ACE
 
 # Install dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Configure API Keys
-
-Create `.env` file:
-
+### 2. Configure Credentials
+Create a `.env` file in the root directory:
 ```bash
-OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_API_KEY=sk-...    # For GPT-5.1 Generator/Reflector
+LANGCHAIN_API_KEY=...    # For LangSmith Tracing
 LANGCHAIN_TRACING_V2=true
 LANGCHAIN_PROJECT=Medical-ACE
 ```
 
 ### 3. Run the System
 
-#### Option A: LangGraph Studio (Recommended)
-
+**Option A: LangGraph Studio (Recommended)**
+Visualize the agent's thought process and ACE updates in real-time.
 ```bash
 langgraph dev --tunnel
 ```
 
-Then visit the URL shown in terminal to use the visual Studio interface.
-
-#### Option B: Command Line
-
+**Option B: CLI Interactive Mode**
 ```bash
-# Single query
-python main.py --mode single
-
-# Batch processing
-python main.py --mode batch
-
-# Interactive mode
 python main.py --mode interactive
 ```
 
-#### Option C: Test Script
+---
 
-```bash
-python test_agent.py
+## Playbook in Action
+The system maintains a live `data/ace_memory/playbook.md` that evolves over time. Example of learned strategies:
+
+```markdown
+- [Decompose Complex Queries] (helpful: 7): Break down multi-part histology questions into parallel VQA calls.
+- [Verify with Majority Vote] (helpful: 5): Use 5-fold fan-out for stochastic VQA outputs to ensure reliability.
+- [Medical Disclaimer] (helpful: 3): Always append clinical safety warnings to diagnostic outputs.
 ```
 
-## 🏗️ Architecture
+---
+
+## Project Structure
 
 ```
 Medical-ACE/
 ├── src/
 │   ├── agents/
-│   │   └── medical_assistant_agent.py  # Main agent (GPT-4o + VQA tool)
-│   └── tools/
-│       └── medical_vqa_tool.py         # Medical VQA tool
-├── inference.py                         # Multimodal inference engine
-├── projector_epoch2.pt                 # Trained projector model
-├── main.py                             # CLI entry point
-└── langgraph.json                      # LangGraph configuration
+│   │   ├── medical_assistant_agent.py  # Generator (Main Agent)
+│   │   └── reflection_agent.py         # Reflector & Curator (ACE)
+│   ├── tools/
+│   │   ├── medical_vqa_tool_remote.py  # Interface to HF Spaces
+│   │   └── medical_vqa_tool.py         # Local fallback
+│   └── middleware/
+│       └── image_handler.py            # Image preprocessing
+├── data/
+│   └── ace_memory/
+│       └── playbook.md                 # Evolving Strategy Memory
+├── docs/                               # Documentation & Reports
+└── langgraph.json                      # Graph Configuration
 ```
 
-## 🔧 Components
+---
 
-### Agent
-- **Model**: GPT-4o (OpenAI)
-- **Type**: LangChain `create_agent`
-- **Tools**: Medical VQA Tool
+## Resources
+- **ACE Framework**: [arXiv:2510.04618](https://arxiv.org/abs/2510.04618)
+- **Demo Slides**: [Presentation Deck](docs/PRESENTATION_DECK.md)
 
-### Medical VQA Tool
-- **Vision**: CLIP (openai/clip-vit-base-patch32)
-- **Language**: TinyLlama (1.1B)
-- **Projector**: Custom trained (epoch 2)
+## Disclaimer
+*This system is a research prototype for educational purposes. It is not a medical device and should not be used for clinical diagnosis.*
 
-## 📊 Supported Image Types
-
-- 🔬 Pathology slides
-- 🩻 X-rays
-- 🧠 CT/MRI scans
-- 🫀 Other medical imaging
-
-## 💡 Usage Examples
-
-### Python API
-
-```python
-from src.agents import medical_assistant
-
-# Query the agent
-result = medical_assistant.invoke({
-    "messages": [{"role": "user", "content": "Analyze image.png"}]
-})
-
-print(result["messages"][-1].content)
-```
-
-### LangGraph Studio
-
-1. Start server: `langgraph dev --tunnel`
-2. Open Studio in browser
-3. Select `medical_assistant` agent
-4. Chat with the agent about medical images
-
-## 🔬 Testing
-
-```bash
-# Test the agent
-python test_agent.py
-
-# Test inference module directly
-python inference.py image.png "What is shown?" projector_epoch2.pt
-```
-
-## ⚙️ Configuration
-
-Edit `src/agents/medical_assistant_agent.py` to customize:
-- Model selection
-- System prompt
-- Tools
-
-Edit `langgraph.json` to add more agents.
-
-## 📝 Notes
-
-⚠️ **Medical Disclaimer**: This system is for research/education only. AI analysis should be verified by qualified medical professionals.
-
-## 🔗 Resources
-
-- [LangChain Docs](https://docs.langchain.com)
-- [LangGraph Studio](https://docs.langchain.com/langgraph/studio)
-- [Project Documentation](docs/MEDICAL_ASSISTANT_GUIDE.md)
-
-## 📄 License
-
-MIT License
+---
+**Columbia University | EECS6893 Big Data Analytics**
+*Team Members: Chengbo Huang, Yufeng Gao, Yigang Meng*
