@@ -2,6 +2,8 @@
 
 🏥 AI-powered medical image analysis system combining vision and language models.
 
+*EECS6893 Big Data Analytics Final Project: A Multi-Agent System that Reads and Understands Medical Images at Scale*
+
 ## 🚀 Quick Start
 
 ### 1. Setup Environment
