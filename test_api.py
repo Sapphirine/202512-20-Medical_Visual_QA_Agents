@@ -2,7 +2,7 @@ import requests
 import json
 import os
 
-IMAGE_PATH = "test3.jpg"
+IMAGE_PATH = "test.jpg"
 BASE_URL = "https://simon9292-medicalqa.hf.space"
 UPLOAD_URL = f"{BASE_URL}/gradio_api/upload"
 API_URL_CALL = f"{BASE_URL}/gradio_api/call/gradio_vqa"

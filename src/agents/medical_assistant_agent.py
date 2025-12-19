@@ -11,10 +11,12 @@ import os
 import sys
 from dotenv import load_dotenv
 
-from typing import Annotated, TypedDict, Union, List, Dict, Any
+from typing import Annotated, TypedDict, Union, List, Dict, Any, Optional
 import operator
+import json
+import asyncio
 
-from langchain_openai import ChatOpenAI
+from langchain.chat_models import init_chat_model
 from langchain_core.messages import SystemMessage, BaseMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, END
@@ -29,8 +31,19 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from src.tools.medical_vqa_tool import medical_vqa_tool
+from src.tools.medical_vqa_tool_remote import medical_vqa_remote_tool
 from src.middleware.image_handler import ImageHandlerMiddleware
+
+# ACE (Agentic Context Engineering) - Playbook path
+ACE_PLAYBOOK_PATH = os.path.join(project_root, "data/ace_memory/playbook.md")
+
+def get_playbook_content() -> str:
+    """Dynamically read the ACE playbook for prompt injection."""
+    try:
+        with open(ACE_PLAYBOOK_PATH, "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        return "# No strategies available yet."
 
 
 # System prompt for the medical assistant
@@ -80,6 +93,7 @@ Be concise but thorough in your responses.
 class AgentState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
     _uploaded_image_path: Union[str, None]
+    _execution_trace: Optional[str]  # ACE: Trace for reflection
 
 # 1. State Processing (Middleware logic)
 image_middleware = ImageHandlerMiddleware(save_dir=project_root)
@@ -101,16 +115,28 @@ def preprocess_state(state: AgentState) -> Dict[str, Any]:
     }
 
 # 2. Model Node
-tools = [medical_vqa_tool]
+tools = [medical_vqa_remote_tool]  # Using remote API tool
 # Use GPT-4o
-model = ChatOpenAI(model="gpt-4o")
+model = init_chat_model("gpt-5.1-2025-11-13", temperature=0)
 model_with_tools = model.bind_tools(tools)
 
 def call_model(state: AgentState, config: RunnableConfig):
     messages = state["messages"]
-    # Prepend system prompt for the context
-    # We don't add it to history, just for this call
-    system_msg = SystemMessage(content=SYSTEM_PROMPT)
+    
+    # ACE: Dynamically build system prompt with playbook
+    playbook = get_playbook_content()
+    full_prompt = f"""{SYSTEM_PROMPT}
+
+---
+
+## ACE Strategy Playbook (Dynamic)
+
+The following strategies are learned from past executions. Use them to improve your responses:
+
+{playbook}
+"""
+    
+    system_msg = SystemMessage(content=full_prompt)
     chain_input = [system_msg] + messages
     
     response = model_with_tools.invoke(chain_input, config)
@@ -143,12 +169,86 @@ def custom_tool_node(state: AgentState):
     return tool_node.invoke(state)
 
 
+# ACE: Trace collection node
+def collect_trace(state: AgentState) -> Dict[str, Any]:
+    """
+    Collect execution trace for ACE reflection.
+    Captures full message details, limited to last 30 messages.
+    """
+    messages = state["messages"]
+    
+    # Limit to last 30 messages for context efficiency
+    recent_messages = messages[-30:] if len(messages) > 30 else messages
+    
+    trace_parts = []
+    for i, msg in enumerate(recent_messages):
+        role = getattr(msg, 'type', 'unknown')
+        content = str(getattr(msg, 'content', ''))[:1000]
+        tool_calls = getattr(msg, 'tool_calls', [])
+        tool_call_id = getattr(msg, 'tool_call_id', None)
+        name = getattr(msg, 'name', None)
+        
+        if tool_calls:
+            # AIMessage with tool calls
+            tool_details = []
+            for tc in tool_calls:
+                tool_name = tc.get('name', '?')
+                tool_args = json.dumps(tc.get('args', {}), ensure_ascii=False)[:200]
+                tool_details.append(f"{tool_name}({tool_args})")
+            trace_parts.append(f"[{role}] Tool Calls: {'; '.join(tool_details)}")
+            if content:
+                trace_parts.append(f"    Content: {content}")
+        elif tool_call_id:
+            # ToolMessage (tool response)
+            trace_parts.append(f"[{role}] {name or 'tool'} Response: {content}")
+        else:
+            # Regular message
+            trace_parts.append(f"[{role}]: {content}")
+    
+    trace_header = f"""# Execution Trace
+Total messages: {len(messages)}
+Showing last: {len(recent_messages)}
+
+## Messages:
+"""
+    
+    return {"_execution_trace": trace_header + "\n".join(trace_parts)}
+
+
+# ACE: Background reflection trigger
+import threading
+
+def _run_reflection_sync(trace: str):
+    """Run reflection in a separate thread."""
+    try:
+        from src.agents.reflection_agent import process_trace_background
+        import asyncio
+        result = asyncio.run(process_trace_background(trace))
+        print(f"[ACE] Reflection completed: {result[:100]}...")
+    except Exception as e:
+        print(f"[ACE] Reflection error: {e}")
+
+def trigger_reflection(state: AgentState) -> Dict[str, Any]:
+    """Trigger background reflection without blocking main response."""
+    trace = state.get("_execution_trace", "")
+    
+    if trace:
+        # Use threading for fire-and-forget (no event loop dependency)
+        thread = threading.Thread(target=_run_reflection_sync, args=(trace,), daemon=True)
+        thread.start()
+        print("[ACE] Background reflection triggered (thread started)")
+    
+    return {}  # No state updates needed
+
+
 # Build Graph
 builder = StateGraph(AgentState)
 
 builder.add_node("preprocess", preprocess_state)
 builder.add_node("agent", call_model)
 builder.add_node("tools", custom_tool_node)
+builder.add_node("collect_trace", collect_trace)          # ACE
+builder.add_node("trigger_reflection", trigger_reflection)  # ACE
 
 builder.set_entry_point("preprocess")
 
@@ -159,10 +259,12 @@ def should_continue(state: AgentState):
     last_message = messages[-1]
     if last_message.tool_calls:
         return "tools"
-    return END
+    return "collect_trace"  # ACE: Go to trace collection instead of END
 
 builder.add_conditional_edges("agent", should_continue)
 builder.add_edge("tools", "agent")
+builder.add_edge("collect_trace", "trigger_reflection")  # ACE
+builder.add_edge("trigger_reflection", END)               # ACE
 
 # Compile
 agent = builder.compile()

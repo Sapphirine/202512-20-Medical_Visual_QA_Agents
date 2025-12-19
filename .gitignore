@@ -53,8 +53,19 @@ data/ace_memory/*.md
 *.bmp
 *.webp
 
+
 # LangGraph checkpoint
 .langgraph_api/
+
+# Documentation
+*.md
+
+# Additional Images
+*.svg
+*.tiff
+*.ico
+
+
 
 
 

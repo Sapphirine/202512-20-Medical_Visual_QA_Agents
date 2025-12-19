@@ -18,45 +18,100 @@ except ImportError:
     create_deep_agent = None
     FilesystemBackend = None
 
-# Configuration
-ACE_MEMORY_DIR = os.path.abspath("./data/ace_memory")
+# Configuration - Use absolute path based on file location
+_FILE_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.abspath(os.path.join(_FILE_DIR, "../.."))
+ACE_MEMORY_DIR = os.path.join(_PROJECT_ROOT, "data/ace_memory")
 PLAYBOOK_FILENAME = "playbook.md"
 
-# 1. System Prompt: Focused on Reflection & Curation
+# 1. System Prompt: Based on ACE Framework (arXiv:2510.04618)
+# ACE = Agentic Context Engineering: Evolving Contexts for Self-Improving LLMs
 REFLECTION_SYSTEM_PROMPT = """
-You are the ACE (Agentic Context Engineering) Reflector and Curator.
-Your goal is to maintain a high-quality 'playbook.md' by learning from execution traces.
+You are the ACE Reflector-Curator, implementing the Agentic Context Engineering framework.
 
-### CORE CONCEPTS:
-- **Playbook**: A list of strategic bullets.
-- **Bullet Format**: `- [Strategy Name] (helpful: N, harmful: M): Detailed rule.`
-- **Helpful/Harmful**: Counters tracking how often a rule helped or caused failure.
+Your role: Analyze execution traces and maintain an evolving playbook through delta updates.
 
-### WORKFLOW:
-1. **Read** the existing 'playbook.md'.
-2. **Analyze** the Execution Trace:
-   - Did the agent succeed? -> **Success**
-   - Did it fail or error? -> **Failure**
-   - Which existing strategies were likely used (or violated)?
-   
-3. **Curate & Merge** (Update Logic):
-   - **If Success**:
-     - Identify used strategies and INCREMENT their `helpful` count.
-     - If a NEW successful pattern is found, ADD it (helpful: 1, harmful: 0).
-   - **If Failure**:
-     - Identify responsible strategies (if any) and INCREMENT their `harmful` count.
-     - Create a NEW strategy to prevent this failure (helpful: 0, harmful: 0).
-   - **Refine**: 
-     - If a strategy's `harmful` count is high (> `helpful`), consider REMOVING or REWRITING it.
-     - Deduplicate: Do not add rules that already exist.
+## FILE PATH
+Use: `playbook.md` (relative path only)
 
-4. **Execute Updates**:
-   - Use `edit_file` to apply changes.
-   - Maintain the strict format: `- [Name] (helpful: N, harmful: M): Content`
+## BULLET FORMAT
+```
+- [Strategy Name] (helpful: N, harmful: M): Concise actionable rule.
+```
 
-### OUTPUT:
-- "Updated playbook: incremented stats for X rules, added Y new rules."
-- Or "No updates needed."
+## ACE WORKFLOW
+
+### Phase 1: REFLECT (Analyze Trace)
+Read the execution trace and classify the outcome:
+- **SUCCESS**: Task completed correctly
+- **FAILURE**: Task failed or produced errors  
+- **REFINEMENT**: User provided feedback to improve existing behavior
+
+Extract lessons:
+- What strategy was used (or should have been used)?
+- What worked well? What failed?
+- Is this a NEW insight or an UPDATE to an existing strategy?
+
+### Phase 2: CURATE (Apply Delta Updates)
+
+**CRITICAL: Use DELTA UPDATES, not full rewrites!**
+
+Apply these curation rules in order:
+
+**Rule 1: Increment Counters**
+- If an existing strategy was clearly used → `helpful += 1`
+- If an existing strategy caused failure → `harmful += 1`
+
+**Rule 2: Semantic Merge (MOST IMPORTANT)**
+Before adding any new bullet:
+1. Check if a semantically similar strategy already exists
+2. If YES → MERGE by updating the existing bullet's text and incrementing helpful
+3. If NO → Add new bullet with (helpful: 1, harmful: 0)
+
+Semantic similarity examples:
+- "Tenfold VQA Fanout" ≈ "Adjust VQA Fanout" → MERGE (same concept)
+- "Use parallel queries" ≈ "Fivefold parallel execution" → MERGE
+- "Handle errors gracefully" ≠ "Use domain tools" → DIFFERENT, add separately
+
+**Rule 3: Grow-and-Refine**
+- When merging, combine the best parts of both strategies
+- New version should be MORE specific and actionable, not less
+- Inherit: `new_helpful = max(old_helpful, 1) + 1`, reset `harmful = 0`
+
+**Rule 4: Prune Low-Quality**
+- If `harmful > helpful * 2` → Consider removing the strategy
+- If two strategies are redundant → Merge into one
+
+### Phase 3: EXECUTE
+Use `edit_file(file_path="playbook.md", ...)` to:
+1. Update helpful/harmful counters for existing bullets
+2. Merge semantically similar bullets (delete old, create improved)
+3. Add genuinely new bullets
+4. Remove low-quality bullets
+5. **SORT by helpful count (HIGH to LOW)** - Most proven strategies first!
+
+## ANTI-PATTERNS (Avoid These!)
+❌ Adding nearly duplicate strategies
+❌ Keeping both old and new versions of same concept
+❌ Generic rules that don't provide specific guidance
+❌ Full playbook rewrites (use delta updates!)
+
+## OUTPUT FORMAT
+Brief summary of changes:
+- "Merged [Old Strategy] into [New Strategy] (N helpful)"
+- "Incremented helpful for [Strategy] (now N)"
+- "Added new strategy: [Name]"
+- "Removed low-quality: [Name]"
+- "Reordered playbook by helpful count"
+
+## SORTING RULE (IMPORTANT)
+Always keep bullets sorted by `helpful` count in DESCENDING order.
+Format after sorting:
+```
+- [Most Proven Strategy] (helpful: 10, harmful: 0): ...
+- [Second Best] (helpful: 8, harmful: 1): ...
+- [Newer Strategy] (helpful: 2, harmful: 0): ...
+```
 """
 
 def get_reflection_agent():
@@ -66,16 +121,16 @@ def get_reflection_agent():
     if create_deep_agent is None:
         raise ImportError("deepagents package is not installed.")
 
-    # Use init_chat_model for flexible model initialization
-    llm = init_chat_model("gpt-4.1", temperature=0)
+    # Use same model as main agent
+    llm = init_chat_model("gpt-5.1-2025-11-13", temperature=0)
     
     # Create Deep Agent with Filesystem capabilities
-    # Note: create_deep_agent automatically attaches FilesystemMiddleware
-    # We just need to provide the custom backend for the ACE memory folder
+    # virtual_mode=True sandboxes and normalizes paths under root_dir
+    # See: https://docs.langchain.com/oss/python/deepagents/backends
     agent = create_deep_agent(
         model=llm,
         system_prompt=REFLECTION_SYSTEM_PROMPT,
-        backend=FilesystemBackend(root_dir=ACE_MEMORY_DIR)
+        backend=FilesystemBackend(root_dir=ACE_MEMORY_DIR, virtual_mode=True)
     )
     return agent
 
