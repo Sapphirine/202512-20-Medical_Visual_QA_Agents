@@ -5,7 +5,8 @@
 
 Medical-ACE is a next-generation medical visual question answering agent that uses **Agentic Context Engineering (ACE)** to continuously improve its performance. Unlike static models, ACE learns from every interaction, evolving a shared "Strategy Playbook" to handle complex diagnostic queries with increasing precision.
 
-Check our Huggingface Gradio Backend here at https://huggingface.co/spaces/simon9292/MedicalQA 
+Check our Huggingface Gradio Backend here at https://huggingface.co/spaces/simon9292/MedicalQA. Remember: The link cannot fully demonstrate our work. This is just the inference backend our system are using. In actual workflow, our ACE multi-agent systems calls this backend's API.
+
 ---
 
 ## Key Features
