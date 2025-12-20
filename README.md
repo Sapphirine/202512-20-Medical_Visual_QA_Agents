@@ -17,7 +17,7 @@ Implements the **Reflect-Curate-Execute** loop (arXiv:2510.04618):
 - **Playbook**: Evolving memory of medical VQA strategies (e.g., "Use 5-fold fan-out for ambiguous slides").
 
 ### Specialized Medical VQA
-- **Vision Backbone**: CLIP (ViT-Base) + Custom Multi-Token Projector.
+- **Vision Backbone**: BLIP + Custom Multi-Token Projector.
 - **Reasoning**: TinyLlama-1.1B aligned with Direct Preference Optimization (DPO) on UltraMedical data.
 - **Deployment**: Hosted on **HuggingFace Spaces** for scalable, GPU-backed inference.
 
@@ -95,35 +95,10 @@ The system maintains a live `data/ace_memory/playbook.md` that evolves over time
 
 ---
 
-## Project Structure
-
-```
-Medical-ACE/
-├── src/
-│   ├── agents/
-│   │   ├── medical_assistant_agent.py  # Generator (Main Agent)
-│   │   └── reflection_agent.py         # Reflector & Curator (ACE)
-│   ├── tools/
-│   │   ├── medical_vqa_tool_remote.py  # Interface to HF Spaces
-│   │   └── medical_vqa_tool.py         # Local fallback
-│   └── middleware/
-│       └── image_handler.py            # Image preprocessing
-├── data/
-│   └── ace_memory/
-│       └── playbook.md                 # Evolving Strategy Memory
-├── docs/                               # Documentation & Reports
-└── langgraph.json                      # Graph Configuration
-```
-
 ---
 
 ## Resources
 - **ACE Framework**: [arXiv:2510.04618](https://arxiv.org/abs/2510.04618)
-- **Demo Slides**: [Presentation Deck](docs/PRESENTATION_DECK.md)
-
-## Disclaimer
-*This system is a research prototype for educational purposes. It is not a medical device and should not be used for clinical diagnosis.*
-
 ---
 **Columbia University | EECS6893 Big Data Analytics**
 *Team Members: Chengbo Huang, Yufeng Gao, Yigang Meng*
